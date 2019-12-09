@@ -1,101 +1,145 @@
-#use python 3
+#use python 3, tensorflow 2.0
 
 import tensorflow as tf
 import numpy as np
 
-def add_advantage_targets(history, value, gamma, lambd):
-    advantage = 0.0
-    for i in range(len(history)-1, 0, -1):
-        s, a, s_prime, r, prob_action = history[i]
-        #TODO: value
-        target = r + gamma * value(s_prime)
-        td_error = target - value(s)
-        advantage_list[i] = td_error + gamma * lambd * advantage
-        history[i] = (s, a, prob_action, target, advantage)
-    return history
+class PPO:
 
-def generate_trajectory(env, pi, value, gamma, lambd, start_state, horizon):
+    def __init__(self, input_shape, num_actions, learning_rate=1e-3, gamma=0.99, lambd=0.95, epsilon=0.2, batch_size=32, num_epochs=10):
+        self.gamma = gamma
+        self.lambd = lambd
+        self.epsilon = epsilon
+        self.num_epochs = num_epochs
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        
+        self.weights = []
+        create_variable = lambda shape : tf.Variable(tf.random.normal(shape=shape, dtype=tf.double))
+        # feature_layer
+        self.common_kernel = create_variable((input_shape, 64))
+        self.common_bias = create_variable((64,))
+        # pi
+        self.pi_kernel = [create_variable((64, 64)), create_variable((64, num_actions))]
+        self.pi_bias = [create_variable((64,))]
+        # value
+        self.value_kernel = [create_variable((64, 64)), create_variable((64, 1))]
+        self.value_bias = [create_variable((64,))]
+        self.weights = []
+        self.weights.extend([self.common_kernel, self.common_bias])
+        self.weights.extend(self.pi_kernel)
+        self.weights.extend(self.pi_bias)
+        self.weights.extend(self.value_kernel)
+        self.weights.extend(self.value_bias)
+
+        self.optimizer = tf.keras.optimizers.Adam(learning_rate)
+
+        self.history = [] # (s,a,s_prime,r,prob_a)
+        self.experience_buffer = [] # (s, a, prob_a, TD_target, advantage)
+        return
+
+    @tf.function
+    def pi(self, inp):
+        feature_layer = tf.matmul(inp, self.common_kernel)
+        bias_layer = tf.nn.bias_add(feature_layer, self.common_bias)
+        activation_layer = tf.nn.relu(bias_layer)
+
+        feature_layer_2 = tf.matmul(activation_layer, self.pi_kernel[0])
+        bias_layer_2 = tf.nn.bias_add(feature_layer_2, self.pi_bias[0])
+        activation_layer_2 = tf.nn.relu(bias_layer_2)
+
+        feature_layer_3 = tf.matmul(activation_layer_2, self.pi_kernel[1])
+        sigmoid_pi = tf.nn.sigmoid(feature_layer_3)
+        return sigmoid_pi
+
+    @tf.function
+    def value(self, inp):
+        feature_layer = tf.matmul(inp, self.common_kernel)
+        bias_layer = tf.nn.bias_add(feature_layer, self.common_bias)
+        activation_layer = tf.nn.relu(bias_layer)
+
+        feature_layer_2 = tf.matmul(activation_layer, self.value_kernel[0])
+        bias_layer_2 = tf.nn.bias_add(feature_layer_2, self.value_bias[0])
+        activation_layer_2 = tf.nn.relu(bias_layer_2)
+
+        fc_v = tf.matmul(activation_layer_2, self.value_kernel[1])
+        return fc_v
+    
+    @tf.function
+    def train_single_step(self, s_list, a_list, prob_action_list, target_list, advantage_list):
+        with tf.GradientTape() as tape:
+            difference_v = target_list - self.value(s_list)
+            loss_v = tf.nn.l2_loss(difference_v)
+
+            prob_distr = self.pi(s_list)
+            numerator = tf.gather(prob_distr, a_list, axis = 1)
+            denominator = tf.gather(prob_action_list, a_list, axis = 1)
+            prob_ratio = tf.divide(numerator,denominator)
+            loss_term_1 = tf.multiply(prob_ratio, advantage_list)
+            prob_ratio_clipped = tf.clip_by_value(prob_ratio, 1 - self.epsilon, 1 + self.epsilon)
+            loss_term_2 = tf.multiply(prob_ratio_clipped, advantage_list)
+            loss_pi = tf.math.minimum(loss_term_1, loss_term_2)
+
+            loss_total = -loss_pi + loss_v
+        
+        gradients = tape.gradient(loss_total, self.weights)
+        self.optimizer.apply_gradients(zip(gradients, self.weights))
+
+    def add_advantage_targets(self):
+        advantage = 0.0
+        self.experience_buffer = [0] * len(self.history)
+        for i in range(len(self.history)-1, -1, -1):
+            s, a, s_prime, r, prob_action = self.history[i]
+            target = r + self.gamma * self.value(np.expand_dims(s_prime, 0)).numpy()[0]
+            td_error = target - self.value(np.expand_dims(s, 0)).numpy()[0]
+            advantage = td_error + self.gamma * self.lambd * advantage
+            self.experience_buffer[i] = (s, a, prob_action, target, advantage)
+        return
+    
+    def populate_history(self, data):
+        self.history = data
+        return
+
+    def train(self):
+        self.add_advantage_targets()
+        for k in range(self.num_epochs):
+            train_batch_indices = np.random.choice(range(len(self.experience_buffer)), self.batch_size)
+            train_batch = [self.experience_buffer[i] for i in train_batch_indices]
+            nth_list = lambda i : [el[i] for el in train_batch]
+            s_list, a_list, prob_action_list, target_list, advantage_list = map(nth_list, range(5))
+
+            self.train_single_step(s_list, a_list, prob_action_list, target_list, advantage_list)
+
+
+def generate_trajectory(env, model, start_state, horizon):
     s = start_state
     done = False
     history = []
     for _ in range(horizon):
-        #TODO: pi
-        prob_action = pi(s)
+        prob_action = model.pi(np.expand_dims(s,0)).numpy()[0]
         a = np.argmax(prob_action)
         #TODO: env.step
-        s_prime, reward, done, info = env.step(a)
+        s_prime, reward, done, _ = env.step(a)
+        env.render()
         history.append((s, a, s_prime, reward, prob_action))
         s = s_prime
-        if not done:
+        if done:
             break
-    #TODO: get value function, gamma, lambd
-    history = add_advantage_targets(history, value, gamma, lambd)
     return history
 
-def collect_data(env, num_actors, horizon, gamma, lambd):
-    experience_buffer = []
+def collect_data(env, num_actors, horizon, model):
+    history_buffer = []
     for actor in range(num_actors):
         #TODO: env.get_start_state
-        start_state = env.get_start_state()
-        history = generate_trajectory(env, pi, value, gamma, lambd, start_state, horizon)
-        experience_buffer.extend(history)
-    #experience_buffer = np.asarray(experience_buffer)
-    #TODO: shuffle experience buffer
-    return experience_buffer
+        # start_state = env.get_start_state()
+        start_state = env.reset()
+        history = generate_trajectory(env, model, start_state, horizon)
+        history_buffer.extend(history)
+    return history_buffer
 
-def dense(inp, num_units):
-    #TODO
-    kernel1 = tf.Variable(tf.random.normal(..))
-    bias1 = tf.Variable(tf.random.normal(...))
-    return tf.nn.relu(tf.matmul(inp, kernel1) + bias1)
-
-@tf.function
-def pi(inp, num_actions):
-    fc_pi = dense(inp, num_actions)
-    sigmoid_pi = tf.nn.sigmoid(fc_pi)
-    return sigmoid_pi
-
-@tf.function
-def value(inp):
-    fc_v = dense(inp, 1)
-    return fc_v
-
-# def permissible_action(inp):
+# def permissible_action(inp)
 
 
 
-def ppo(env, num_actions, num_iters, num_actors, batch_size, num_epochs, epsilon, learning_rate):
-    
-    feature_layer = dense(inp, 64)
-    for i in range(num_iters):
-        experience_buffer = collect_data(num_actors, horizon)
-        for j in range(num_epochs):
-            train_batch = np.random.choice(experience_buffer, batch_size)
-            s_list, a_list, prob_action_list, target_list, advantage_list = zip(*train_batch)
-            s_tensor = tf.Variable(s_list)
-            a_tensor = tf.Variable(a_list)
-            prob_action_tensor = tf.Variable(prob_action_list)
-            target_tensor = tf.Variable(target_list)
-            advantage_tensor = tf.Variable(advantage_list)
-            
-            difference_v = target_tensor - value(s_tensor)
-            loss_v = tf.nn.l2_loss(difference_v)
-
-            prob_distr = pi(s_tensor)
-            numerator = tf.gather_nd(prob_distr, a_tensor)
-            denominator = tf.gather_nd(prob_action_tensor, a_tensor)
-            prob_ratio = tf.divide(numerator,denominator)
-            loss_term_1 = tf.multiply (prob_ratio,advantage_tensor)
-            clip_min_value = 1 - epsilon
-            clip_max_value = 1 + epsilon
-            prob_ratio_clipped = tf.clip_by_value(prob_ratio, clip_min_value, clip_max_value)
-            loss_term_2 = tf.multiply(prob_ratio_clipped, advantage_tensor)
-            loss_pi = tf.math.minimum(loss_term_1, loss_term_2)
-
-            loss_total = -loss_pi + loss_v
-
-            adam_optimiser = tf.keras.optimizers.Adam(learning_rate)
-            
 
 
 
