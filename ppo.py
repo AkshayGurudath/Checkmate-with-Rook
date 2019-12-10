@@ -81,7 +81,7 @@ class PPO:
         pr = lambda s, x : tf.print(s, x.shape)
         with tf.GradientTape() as tape:
             difference_v = target_list - self.value(s_list)
-            loss_v = tf.square(difference_v)
+            loss_v = tf.math.reduce_mean(tf.square(difference_v))
 
             prob_distr = self.pi(s_list)
             numerator = tf.gather_nd(prob_distr, a_list)
@@ -90,10 +90,10 @@ class PPO:
             loss_term_1 = tf.multiply(prob_ratio, advantage_list)
             prob_ratio_clipped = tf.clip_by_value(prob_ratio, 1 - self.epsilon, 1 + self.epsilon)
             loss_term_2 = tf.multiply(prob_ratio_clipped, advantage_list)
-            loss_pi = tf.math.minimum(loss_term_1, loss_term_2)
-
-            loss_total_individual = -loss_pi + loss_v
-            loss_total = tf.math.reduce_mean(loss_total_individual)
+            loss_pi = tf.math.reduce_mean(-tf.math.minimum(loss_term_1, loss_term_2))
+            loss_total = loss_pi + loss_v
+            # loss_total_individual = -loss_pi + loss_v
+            # loss_total = tf.math.reduce_mean(loss_total_individual)
             # tf.print("loss total = ", loss_total)
 
         gradients = tape.gradient(loss_total, self.weights)
@@ -106,7 +106,7 @@ class PPO:
             s, a, s_prime, r, prob_action, done = actor_history[i]
             target = r + self.gamma * self.value(tf.constant(np.expand_dims(s_prime, 0),dtype=tf.float32)).numpy()[0] * (not done)
             td_error = target - self.value(tf.constant(np.expand_dims(s, 0),dtype=tf.float32)).numpy()[0]
-            advantage = td_error + self.gamma * self.lambd * advantage
+            advantage = td_error + self.gamma * self.lambd * advantage * (not done)
             # print(i, s, a, s_prime, r, done, td_error, target, advantage)
             actor_experience_buffer[i] = (s, a, prob_action, target, advantage)
         self.experience_buffer.extend(actor_experience_buffer)
