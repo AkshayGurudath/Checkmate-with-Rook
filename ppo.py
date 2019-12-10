@@ -12,7 +12,9 @@ class PPO:
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
-        
+
+        print("PPO.__init__() : Set hyperparameters")
+
         self.weights = []
         create_variable = lambda shape : tf.Variable(tf.random.normal(shape=shape, dtype=tf.float32))
         # # feature_layer
@@ -40,10 +42,9 @@ class PPO:
         # self.weights.extend(self.pi_bias)
         self.weights.extend(self.value_kernel)
         # self.weights.extend(self.value_bias)
-
+        print("PPO.__init__() : Set weights - ", len(self.weights))
         self.optimizer = tf.keras.optimizers.Adam(learning_rate)
 
-        self.history = [] # (s,a,s_prime,r,prob_a)
         self.experience_buffer = [] # (s, a, prob_a, TD_target, advantage)
         return
 
@@ -74,7 +75,7 @@ class PPO:
         fc_v = tf.matmul(activation_layer, self.value_kernel[0])
         fc_v_squeeze = tf.squeeze(fc_v, axis=-1)
         return fc_v_squeeze
-    
+
     @tf.function
     def train_single_step(self, s_list, a_list, prob_action_list, target_list, advantage_list):
         pr = lambda s, x : tf.print(s, x.shape)
@@ -94,27 +95,24 @@ class PPO:
             loss_total_individual = -loss_pi + loss_v
             loss_total = tf.math.reduce_mean(loss_total_individual)
             # tf.print("loss total = ", loss_total)
-        
+
         gradients = tape.gradient(loss_total, self.weights)
         self.optimizer.apply_gradients(zip(gradients, self.weights))
 
-    def add_advantage_targets(self):
+    def add_advantage_targets(self, actor_history): # for one actor only
         advantage = 0.0
-        self.experience_buffer = [0] * len(self.history)
-        for i in range(len(self.history)-1, -1, -1):
-            s, a, s_prime, r, prob_action, done = self.history[i]
-            target = r + self.gamma * self.value(tf.constant(np.expand_dims(s_prime, 0),dtype=tf.float32)).numpy()[0] * done
+        actor_experience_buffer = [0] * len(actor_history)
+        for i in range(len(actor_history)-1, -1, -1):
+            s, a, s_prime, r, prob_action, done = actor_history[i]
+            target = r + self.gamma * self.value(tf.constant(np.expand_dims(s_prime, 0),dtype=tf.float32)).numpy()[0] * (not done)
             td_error = target - self.value(tf.constant(np.expand_dims(s, 0),dtype=tf.float32)).numpy()[0]
             advantage = td_error + self.gamma * self.lambd * advantage
-            self.experience_buffer[i] = (s, a, prob_action, target, advantage)
-        return
-    
-    def populate_history(self, data):
-        self.history = data
+            # print(i, s, a, s_prime, r, done, td_error, target, advantage)
+            actor_experience_buffer[i] = (s, a, prob_action, target, advantage)
+        self.experience_buffer.extend(actor_experience_buffer)
         return
 
     def train(self):
-        self.add_advantage_targets()
         for k in range(self.num_epochs):
             train_batch_indices = np.random.choice(range(len(self.experience_buffer)), self.batch_size)
             train_batch = [self.experience_buffer[i] for i in train_batch_indices]
@@ -128,6 +126,10 @@ class PPO:
             advantage_tensor = tf.constant(advantage_list, dtype=tf.float32)
 
             self.train_single_step(s_tensor, a_tensor, prob_action_tensor, target_tensor, advantage_tensor)
+
+        # delete all experience to accomodate new ones for next train
+        self.experience_buffer = []
+        return
 
 
 def generate_trajectory(env, model, start_state, horizon):
@@ -148,26 +150,17 @@ def generate_trajectory(env, model, start_state, horizon):
             break
     return history, score, s_prime, done
 
-def collect_data(env, num_actors, horizon, model, batch_size):
-    history_buffer = []
-    avg_score = 0
-    start_state = env.reset()
-    for actor in range(num_actors):
-        #TODO: env.get_start_state
-        # start_state = env.get_start_state()
-        # start_state = env.reset()
-        history, score, start_state, done = generate_trajectory(env, model, start_state, horizon)
-        history_buffer.extend(history)
-        avg_score += score
-        if done:
-            start_state = env.reset()
-    return history_buffer, avg_score / num_actors
+# def collect_data(env, num_actors, horizon, model):
+#     history_buffer = []
+#     avg_score = 0
+#     #TODO: env.get_start_state
+#     start_state = env.reset()
+#     for actor in range(num_actors):
+#         history, score, start_state, done = generate_trajectory(env, model, start_state, horizon)
+#         history_buffer.append(history)
+#         avg_score += score
+#         if done:
+#             start_state = env.reset()
+#     return history_buffer, avg_score / num_actors
 
 # def permissible_action(inp)
-
-
-
-
-
-
-
