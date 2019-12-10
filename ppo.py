@@ -16,7 +16,7 @@ class PPO:
         print("PPO.__init__() : Set hyperparameters")
 
         self.weights = []
-        create_variable = lambda shape : tf.Variable(tf.random.normal(shape=shape, dtype=tf.float32))
+        create_variable = lambda shape : tf.Variable(tf.keras.initializers.GlorotUniform()(shape, dtype=tf.float32))
         # # feature_layer
         # self.common_kernel = create_variable((input_shape, 64))
         # self.common_bias = create_variable((64,))
@@ -27,8 +27,8 @@ class PPO:
         # self.value_kernel = [create_variable((64, 64)), create_variable((64, 1))]
         # self.value_bias = [create_variable((64,))]
 
-        self.common_kernel = tf.Variable(tf.random.normal(shape=(input_shape, 256), dtype=tf.float32, seed=42))
-        # self.common_kernel = create_variable((input_shape, 256))
+        # self.common_kernel = tf.Variable(tf.random.normal(shape=(input_shape, 256), dtype=tf.float32, seed=42))
+        self.common_kernel = create_variable((input_shape, 256))
         self.common_bias = create_variable((256,))
         # pi
         self.pi_kernel = [create_variable((256, num_actions))]
@@ -52,7 +52,7 @@ class PPO:
     def pi(self, inp):
         feature_layer = tf.matmul(inp, self.common_kernel)
         bias_layer = tf.nn.bias_add(feature_layer, self.common_bias)
-        activation_layer = tf.nn.tanh(bias_layer)
+        activation_layer = tf.nn.relu(bias_layer)
 
         # feature_layer_2 = tf.matmul(activation_layer, self.pi_kernel[0])
         # bias_layer_2 = tf.nn.bias_add(feature_layer_2, self.pi_bias[0])
@@ -66,7 +66,7 @@ class PPO:
     def value(self, inp):
         feature_layer = tf.matmul(inp, self.common_kernel)
         bias_layer = tf.nn.bias_add(feature_layer, self.common_bias)
-        activation_layer = tf.nn.tanh(bias_layer)
+        activation_layer = tf.nn.relu(bias_layer)
 
         # feature_layer_2 = tf.matmul(activation_layer, self.value_kernel[0])
         # bias_layer_2 = tf.nn.bias_add(feature_layer_2, self.value_bias[0])
@@ -132,7 +132,7 @@ class PPO:
         return
 
 
-def generate_trajectory(env, model, start_state, horizon):
+def generate_trajectory(env, model, start_state, horizon, render=False):
     s = start_state
     done = False
     history = []
@@ -142,7 +142,8 @@ def generate_trajectory(env, model, start_state, horizon):
         a = np.random.choice([0,1], p=prob_action) # TODO: remove hardcoding
         #TODO: env.step
         s_prime, reward, done, _ = env.step(a)
-        # env.render()
+        if render:
+            env.render()
         history.append((s, a, s_prime, reward, prob_action, done))
         s = s_prime
         score += reward
