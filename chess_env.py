@@ -14,6 +14,9 @@ class ChessEnv:
         self.player_color = player_color
         self.draw_penalty = draw_penalty
 
+        self.state_dimension = 6
+        self.action_dimension = 36
+
     def _state_to_uci(self):
         pass
 
@@ -133,11 +136,11 @@ class ChessEnv:
                 uci_to = self._pos_to_uci( (rook_position[0], rook_position[1] + dy) )
 
         if uci_to == "":
-            raise ValueError("Illegal move")
+            raise ValueError("Illegal move - {} in state {} ".format(action, self._get_current_state()))
         move_uci_str = uci_from + uci_to
         move = chess.Move.from_uci(move_uci_str)
         if move not in self.board.legal_moves:
-            raise ValueError("Illegal move")
+            raise ValueError("Illegal move - {} in state {} ".format(action, self._get_current_state()))
         self.board.push(move)
         return
 
@@ -165,7 +168,7 @@ class ChessEnv:
             if position:
                 state.append(( position % 8 ) + 1)  # x co-ordinate
                 state.append(( position // 8 ) + 1)  # y co-ordinate
-
+            # TODO: else condition here when rook is taken
         return np.asarray(state)
 
     # returns a boolean list of length 36
@@ -189,7 +192,6 @@ class ChessEnv:
 
 
     def step(self, action):
-
         try:
             self._push_move(action)
         except ValueError:
