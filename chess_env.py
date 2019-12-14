@@ -7,9 +7,9 @@ import numpy as np
 
 class ChessEnv:
 
-    def __init__(self, engine_path, time_limit_for_engine=0.1, player_color = chess.BLACK, draw_penalty=-10):
+    def __init__(self, engine_path, time_limit_for_engine=0.1, player_color = chess.WHITE, draw_penalty=-10):
         self.board = chess.Board()
-        self.engine = chess.engine.SimpleEngine.popen_uci(engine_path)
+        self.engine_path = engine_path
         self.time_limit_for_engine = time_limit_for_engine
         self.player_color = player_color
         self.draw_penalty = draw_penalty
@@ -22,7 +22,7 @@ class ChessEnv:
 
     def _episode_ended(self):  # Returns boolean to check if the episode has ended or not
         if self.board.is_checkmate() or self.board.is_stalemate() or self.board.can_claim_fifty_moves() or \
-                self.board.has_insufficient_material():
+                (self.board.has_insufficient_material(chess.WHITE) and self.board.has_insufficient_material(chess.BLACK)):
             return True
         else:
             return False
@@ -80,14 +80,15 @@ class ChessEnv:
                                                         (1, -1): 4, (0, -1): 5, (-1, -1):6, (-1, 0): 7}
             action = king_delta_action_dict[(dx, dy)]
         elif str.lower(piece.symbol()) == 'r':
+            map_to_index = list(range(7,0,-1))
             if dx == 0: # vertical move
                 if dy < 0: # down
-                    action = 7 + 14 + abs(dy) # 0-7 - king, 14 - horizontal
+                    action = 7 + 14 + map_to_index[abs(dy)-1] # 0-7 - king, 14 - horizontal
                 else:
                     action = 7 + 14 + 7 + abs(dy) # 0-7 - king, 14 - horizontal, 7 - down
             else: # horizontal move
                 if dx < 0: # left
-                    action = 7 + abs(dx) # 0-7 - king
+                    action = 7 + map_to_index[abs(dx) - 1] # 0-7 - king
                 else:
                     action = 7 + 7 + abs(dx) # 0-7 - king, 7 - left
         return action
@@ -167,24 +168,28 @@ class ChessEnv:
     def legal_moves(self):
         legal_actions = [False] * 36
         # get uci strings of all permissible moves
-        legal_moves = map(lambda x: x.uci(), self.board.legal_moves)
+        legal_moves = list(map(lambda x: x.uci(), self.board.legal_moves))
         # get indices for permissible actions
-        indices = map(lambda x : self._action_index_from_uci(x), legal_moves)
+        indices = list(map(lambda x : self._action_index_from_uci(x), legal_moves))
         # prune out all -1s, which correspond to engine's permissible moves
-        indices = filter(lambda x: x != -1, indices)
+        indices = list(filter(lambda x: x != -1, indices))
         for i in indices:
             legal_actions[i] = True
         return legal_actions
 
     def engine_move(self):
-        result = self.engine.play(self.board, chess.engine.Limit(time=self.time_linit_for_engine))
+        engine=chess.engine.SimpleEngine.popen_uci(self.engine_path)
+        result = engine.play(self.board, chess.engine.Limit(time=self.time_limit_for_engine))
         self.board.push(result.move)
+        engine.quit()
+
 
     def step(self, action):
 
         try:
             self._push_move(action)
         except ValueError:
+            print("Invalid action")
             raise
 
         done = self._episode_ended()
