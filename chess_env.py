@@ -49,6 +49,8 @@ class ChessEnv:
     # Eg - (1,2) = 'a2'
     def _pos_to_uci(self, pos):
         x, y = pos # x, y are in the range 1 to 8
+        if  x > 8 or x < 0 or y > 8 or y < 0:
+            return ""
         uci_x = chr(x + 96) # 97 = 'a'
         uci_y = str(y)
         return uci_x + uci_y
@@ -130,6 +132,8 @@ class ChessEnv:
                 dy = (action - 29) if action <= 28 else (action - 28)
                 uci_to = self._pos_to_uci( (rook_position[0], rook_position[1] + dy) )
 
+        if uci_to == "":
+            raise ValueError("Illegal move")
         move_uci_str = uci_from + uci_to
         move = chess.Move.from_uci(move_uci_str)
         if move not in self.board.legal_moves:
@@ -155,7 +159,7 @@ class ChessEnv:
             pieces.extend(['K', 'R', 'k'])
         else:
             pieces.extend(['k', 'r', 'K'])
-        
+
         for piece in pieces:
             position = inv_piece_map.get(chess.Piece.from_symbol(piece), "")
             if position:
