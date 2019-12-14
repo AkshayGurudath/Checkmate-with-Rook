@@ -164,8 +164,8 @@ class ChessEnv:
             pieces.extend(['k', 'r', 'K'])
 
         for piece in pieces:
-            position = inv_piece_map.get(chess.Piece.from_symbol(piece), "")
-            if position:
+            position = inv_piece_map.get(chess.Piece.from_symbol(piece), -1)
+            if position != -1:
                 state.append(( position % 8 ) + 1)  # x co-ordinate
                 state.append(( position // 8 ) + 1)  # y co-ordinate
             # TODO: else condition here when rook is taken
@@ -210,4 +210,4 @@ class ChessEnv:
         return next_state, reward, done, 0
 
     def render(self):
-        pass
+        print(self.board)
