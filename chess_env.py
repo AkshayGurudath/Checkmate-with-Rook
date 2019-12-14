@@ -88,11 +88,13 @@ class ChessEnv:
             rook_position = tuple(current_state[2:4])
             uci_from = self._pos_to_uci(rook_position)
             if action < 22: # rook horizontal move
-                action -= 15 # this renormalizes action to range -7 to +7
-                uci_to = self._pos_to_uci( (rook_position[0] + action, rook_position[1]))
+                # get dx in range -7 to 7, excluding 0
+                dx = (action - 16) if action <= 15 else (action - 15)
+                uci_to = self._pos_to_uci( (rook_position[0] + dx, rook_position[1]))
             else: # rook vertical move
-                action -= 28 # this renormalizes action to range -7 to +7
-                uci_to = self._pos_to_uci( (rook_position[0], rook_position[1] + action) )
+                # get dy in range -7 to 7, excluding 0
+                dy = (action - 30) if action <= 29 else (action - 29)
+                uci_to = self._pos_to_uci( (rook_position[0], rook_position[1] + dy) )
 
         move_uci_str = uci_from + uci_to
         move = chess.Move.from_uci(move_uci_str)
