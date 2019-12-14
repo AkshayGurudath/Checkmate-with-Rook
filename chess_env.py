@@ -47,7 +47,7 @@ class ChessEnv:
         pass
 
     def engine_move(self):
-        result = self.engine.play(board, chess.engine.Limit(time=self.time_linit_for_engine))
+        result = self.engine.play(self.board, chess.engine.Limit(time=self.time_linit_for_engine))
         self.board.push(result.move)
 
     def step(self, action):
