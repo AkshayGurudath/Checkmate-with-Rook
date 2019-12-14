@@ -46,6 +46,10 @@ class ChessEnv:
     def reset(self):
         pass
 
+    def engine_move(self):
+        result = self.engine.play(self.board, chess.engine.Limit(time=self.time_linit_for_engine))
+        self.board.push(result.move)
+
     def step(self, action):
 
         try:
@@ -56,7 +60,7 @@ class ChessEnv:
         done = self._episode_ended()
 
         if not done:
-            # the engine move
+            self.engine_move()
             done = self._episode_ended()
 
         reward = self._get_reward()
