@@ -18,30 +18,16 @@ class PPO:
         self.weights = []
         create_variable = lambda shape : tf.Variable(tf.keras.initializers.GlorotUniform()(shape, dtype=tf.float32))
         # # feature_layer
-        # self.common_kernel = create_variable((input_shape, 64))
-        # self.common_bias = create_variable((64,))
-        # # pi
-        # self.pi_kernel = [create_variable((64, 64)), create_variable((64, num_actions))]
-        # self.pi_bias = [create_variable((64,))]
-        # # value
-        # self.value_kernel = [create_variable((64, 64)), create_variable((64, 1))]
-        # self.value_bias = [create_variable((64,))]
-
-        # self.common_kernel = tf.Variable(tf.random.normal(shape=(input_shape, 256), dtype=tf.float32, seed=42))
         self.common_kernel = create_variable((input_shape, 256))
         self.common_bias = create_variable((256,))
         # pi
         self.pi_kernel = [create_variable((256, num_actions))]
-        # self.pi_bias = [create_variable((,))]
         # value
         self.value_kernel = [create_variable((256, 1))]
-        # self.value_bias = [create_variable((64,))]
         self.weights = []
         self.weights.extend([self.common_kernel, self.common_bias])
         self.weights.extend(self.pi_kernel)
-        # self.weights.extend(self.pi_bias)
         self.weights.extend(self.value_kernel)
-        # self.weights.extend(self.value_bias)
         print("PPO.__init__() : Set weights - ", len(self.weights))
         self.optimizer = tf.keras.optimizers.Adam(learning_rate)
 
@@ -54,10 +40,6 @@ class PPO:
         bias_layer = tf.nn.bias_add(feature_layer, self.common_bias)
         activation_layer = tf.nn.relu(bias_layer)
 
-        # feature_layer_2 = tf.matmul(activation_layer, self.pi_kernel[0])
-        # bias_layer_2 = tf.nn.bias_add(feature_layer_2, self.pi_bias[0])
-        # activation_layer_2 = tf.nn.tanh(bias_layer_2)
-
         feature_layer_3 = tf.matmul(activation_layer, self.pi_kernel[0])
         softmax_pi = tf.nn.softmax(feature_layer_3)
         return softmax_pi
@@ -67,10 +49,6 @@ class PPO:
         feature_layer = tf.matmul(inp, self.common_kernel)
         bias_layer = tf.nn.bias_add(feature_layer, self.common_bias)
         activation_layer = tf.nn.relu(bias_layer)
-
-        # feature_layer_2 = tf.matmul(activation_layer, self.value_kernel[0])
-        # bias_layer_2 = tf.nn.bias_add(feature_layer_2, self.value_bias[0])
-        # activation_layer_2 = tf.nn.tanh(bias_layer_2)
 
         fc_v = tf.matmul(activation_layer, self.value_kernel[0])
         fc_v_squeeze = tf.squeeze(fc_v, axis=-1)
@@ -92,10 +70,6 @@ class PPO:
             loss_term_2 = tf.multiply(prob_ratio_clipped, advantage_list)
             loss_pi = tf.math.reduce_mean(-tf.math.minimum(loss_term_1, loss_term_2))
             loss_total = loss_pi + loss_v
-            # loss_total_individual = -loss_pi + loss_v
-            # loss_total = tf.math.reduce_mean(loss_total_individual)
-            # tf.print("loss total = ", loss_total)
-
         gradients = tape.gradient(loss_total, self.weights)
         self.optimizer.apply_gradients(zip(gradients, self.weights))
 
@@ -107,7 +81,6 @@ class PPO:
             target = r + self.gamma * self.value(tf.constant(np.expand_dims(s_prime, 0),dtype=tf.float32)).numpy()[0] * (not done)
             td_error = target - self.value(tf.constant(np.expand_dims(s, 0),dtype=tf.float32)).numpy()[0]
             advantage = td_error + self.gamma * self.lambd * advantage * (not done)
-            # print(i, s, a, s_prime, r, done, td_error, target, advantage)
             actor_experience_buffer[i] = (s, a, prob_action, target, advantage)
         self.experience_buffer.extend(actor_experience_buffer)
         return
@@ -150,18 +123,3 @@ def generate_trajectory(env, model, start_state, horizon, render=False):
         if done:
             break
     return history, score, s_prime, done
-
-# def collect_data(env, num_actors, horizon, model):
-#     history_buffer = []
-#     avg_score = 0
-#     #TODO: env.get_start_state
-#     start_state = env.reset()
-#     for actor in range(num_actors):
-#         history, score, start_state, done = generate_trajectory(env, model, start_state, horizon)
-#         history_buffer.append(history)
-#         avg_score += score
-#         if done:
-#             start_state = env.reset()
-#     return history_buffer, avg_score / num_actors
-
-# def permissible_action(inp)
