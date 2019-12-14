@@ -7,6 +7,7 @@ class ChessEnv:
         self.engine = chess.engine.SimpleEngine.popen_uci(engine_path)
         self.time_limit_for_engine = time_limit_for_engine
         self.player_color = player_color
+        self.draw_penalty = draw_penalty
         pass
 
     def _state_to_uci(self):
@@ -63,6 +64,13 @@ class ChessEnv:
         return
 
     def _get_reward(self):
+        if self._episode_ended():
+            if self.board.result() == "1/2-1/2":
+                return self.draw_penalty # penalize for draw
+            else:
+                return 0 # do nothing for victory
+            # note - the player can never lose
+        return -1 # give -1 for every step taken
         pass
 
     def _get_current_state(self):
