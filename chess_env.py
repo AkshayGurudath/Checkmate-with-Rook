@@ -1,4 +1,5 @@
 import chess
+import chess.engine
 import numpy as np
 
 class ChessEnv:
@@ -18,10 +19,10 @@ class ChessEnv:
     def _get_reward(self):
         pass
 
-    def _get_current_state(self, board):
+    def _get_current_state(self):
         state = []
         pieces = []
-        piece_map = board.piece_map()
+        piece_map = self.board.piece_map()
         inv_piece_map = {val: key for key, val in piece_map.items()}
         if self.player_color == chess.WHITE:
             pieces.extend(['K', 'R', 'k'])
@@ -45,8 +46,23 @@ class ChessEnv:
     def reset(self):
         pass
 
-    def step(self):
-        pass
+    def step(self, action):
+
+        try:
+            self._push_move(action)
+        except ValueError:
+            raise
+
+        done = self._episode_ended()
+
+        if not done:
+            # the engine move
+            done = self._episode_ended()
+
+        reward = self._get_reward()
+        next_state = self._get_current_state()
+
+        return next_state, reward, done, 0
 
     def render(self):
         pass
