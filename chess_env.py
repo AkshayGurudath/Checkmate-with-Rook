@@ -32,8 +32,8 @@ class ChessEnv:
         for piece in pieces:
             position = inv_piece_map.get(chess.Piece.from_symbol(piece), "")
             if position:
-                state.append(( position // 8 ) + 1)  # x co-ordinate
-                state.append(( position % 8 ) + 1)  # y co-ordinate
+                state.append(( position % 8 ) + 1)  # x co-ordinate
+                state.append(( position // 8 ) + 1)  # y co-ordinate
 
         return np.asarray(state)
 
