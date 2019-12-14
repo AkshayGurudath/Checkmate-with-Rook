@@ -111,8 +111,9 @@ def generate_trajectory(env, model, start_state, horizon, render=False):
     history = []
     score = 0
     for _ in range(horizon):
-        prob_action = model.pi(tf.constant(np.expand_dims(s,0),dtype=tf.float32)).numpy()[0]
-        a = np.random.choice([0,1], p=prob_action) # TODO: remove hardcoding
+        prob_action = model.pi(tf.constant(np.expand_dims(s,0), dtype=tf.float32)).numpy()[0]
+        prob_action_modified = renormalize(env, prob_action)
+        a = np.random.choice([0, 1], p=prob_action_modified) # TODO: remove hardcoding
         #TODO: env.step
         s_prime, reward, done, _ = env.step(a)
         if render:
@@ -123,3 +124,14 @@ def generate_trajectory(env, model, start_state, horizon, render=False):
         if done:
             break
     return history, score, s_prime, done
+
+
+def renormalize_prob_dist(env, prob_distr):
+    prob_dist = prob_distr[:]
+    boolean_action_list = env.legal_moves()
+    for i in range(prob_dist):
+        if boolean_action_list[i] == 0:
+            prob_dist[i] = 0
+    sum_prob = np.sum(prob_dist)
+    prob_dist_modified = [i/sum_prob for i in prob_dist]
+    return prob_dist_modified

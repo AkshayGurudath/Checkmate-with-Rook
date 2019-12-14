@@ -1,6 +1,7 @@
 import chess
 import random
 import numpy as np
+import chess.svg
 
 class ChessEnv:
 
@@ -22,8 +23,12 @@ class ChessEnv:
     def _get_current_state(self):
         pass
 
-    def _episode_ended(self):
-        pass
+    def _episode_ended(self):  # Returns boolean to check if the episode has ended or not
+        if self.board.is_checkmate() or self.board.is_stalemate() or self.board.can_claim_fifty_moves() or \
+                self.board.has_insufficient_material():
+            return True
+        else:
+            return False
 
     def _legal_moves(self):
         pass
@@ -41,6 +46,9 @@ class ChessEnv:
             chess.Board.set_piece_map(self.board, map_dict)  # position to piece mapping
             self.board.set_castling_fen("-")  # Sets castling rights to none
             self.board.turn = self.player_color
+        if self.player_color == chess.BLACK:
+            self.engine_move()
+
         return self._get_current_state()
 
 
@@ -49,3 +57,7 @@ class ChessEnv:
 
     def render(self):
         pass
+
+
+
+
