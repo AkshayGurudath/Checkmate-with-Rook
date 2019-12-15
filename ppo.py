@@ -107,15 +107,16 @@ class PPO:
         return
 
 
-def generate_trajectory(env, model, start_state, horizon, render=False):
+def generate_trajectory(env, model, start_state, horizon, render=False, renormalize=False):
     s = start_state
     done = False
     history = []
     score = 0
     for _ in range(horizon):
         prob_action = model.pi(tf.constant(np.expand_dims(s,0), dtype=tf.float32)).numpy()[0]
-        prob_action_modified = renormalize_prob_dist(env, prob_action)
-        a = np.random.choice(list(range(model.action_dimension)), p=prob_action_modified)
+        if renormalize:
+            prob_action = renormalize_prob_dist(env, prob_action)
+        a = np.random.choice(list(range(model.action_dimension)), p=prob_action)
         s_prime, reward, done, _ = env.step(a)
         if render:
             env.render()

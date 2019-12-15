@@ -168,7 +168,11 @@ class ChessEnv:
             if position != -1:
                 state.append(( position % 8 ) + 1)  # x co-ordinate
                 state.append(( position // 8 ) + 1)  # y co-ordinate
-            # TODO: else condition here when rook is taken
+
+        if len(state) == 4: # rook has been taken
+            x, y = state[2:4]
+            state.extend( [x,y] ) # rook and king share same position now
+
         return np.asarray(state)
 
     # returns a boolean list of length 36
