@@ -7,7 +7,7 @@ import numpy as np
 
 class ChessEnv:
 
-    def __init__(self, engine_path, time_limit_for_engine=0.1, player_color = chess.WHITE, draw_penalty=-10):
+    def __init__(self, engine_path, time_limit_for_engine=0.1, player_color = chess.WHITE, draw_penalty=-50):
         self.board = chess.Board()
         self.engine_path = engine_path
         self.time_limit_for_engine = time_limit_for_engine
@@ -172,7 +172,6 @@ class ChessEnv:
         if len(state) == 4: # rook has been taken
             x, y = state[2:4]
             state.extend( [x,y] ) # rook and king share same position now
-
         return np.asarray(state)
 
     # returns a boolean list of length 36
