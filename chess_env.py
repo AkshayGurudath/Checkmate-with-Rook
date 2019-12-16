@@ -31,7 +31,7 @@ class ChessEnv:
             return False
 
     def reset(self):
-        chess.Board.clear_board(self.board)
+        chess.Board.clear(self.board)
         agent_rook = chess.Piece(chess.ROOK, self.player_color)
         agent_king = chess.Piece(chess.KING, self.player_color)
         opponent_king = chess.Piece(chess.KING, not self.player_color)
@@ -214,3 +214,8 @@ class ChessEnv:
 
     def render(self):
         print(self.board)
+
+    def random_move(self):
+        leg_moves = list(self.board.legal_moves)
+        a = random.choice(leg_moves)
+        self.board.push(a)
